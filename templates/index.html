@@ -1,0 +1,228 @@
+{% extends "layout.html" %}
+
+{% block title %}Dosya Gezgini{% endblock %}
+
+{% block styles %}
+<style>
+    .folder-icon {
+        width: 1.2em;
+        height: 1.2em;
+        vertical-align: text-bottom;
+        margin-right: 4px;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb bg-light rounded-pill px-3 py-2 mb-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Ana Dizin</a></li>
+            {% for crumb in breadcrumbs %}
+            <li class="breadcrumb-item"><a href="{{ url_for('index', path=crumb.path) }}">{{ crumb.name }}</a></li>
+            {% endfor %}
+        </ol>
+    </nav>
+    
+    {% if current_user.is_authenticated and current_user.role == 'admin' %}
+    <div>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="bi bi-upload"></i> Dosya Yükle
+        </button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createFolderModal">
+            <i class="bi bi-folder-plus"></i> Klasör Oluştur
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">İsim</th>
+                    {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                    <th scope="col" class="text-end">İşlemler</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% if current_path != '.' %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('index', path=current_path.rsplit('/', 1)[0] if '/' in current_path else '') }}" class="icon-link">
+                            <i class="bi bi-arrow-90deg-up"></i> .. (Üst Dizin)
+                        </a>
+                    </td>
+                    {% if current_user.is_authenticated and current_user.role == 'admin' %}<td></td>{% endif %}
+                </tr>
+                {% endif %}
+
+                {% for item in items %}
+                <tr>
+                    <td>
+                        {% if item.is_dir %}
+                        <a href="{{ url_for('index', path=item.path) }}" class="icon-link">
+                            {% if item.custom_icon_url %}
+                                <img src="{{ item.custom_icon_url }}" class="folder-icon" alt="icon">
+                            {% else %}
+                                <i class="bi bi-folder-fill text-primary"></i>
+                            {% endif %}
+                            {{ item.name }}
+                        </a>
+                        {% else %}
+                        <a href="{{ url_for('download_file', path=item.path) }}" class="icon-link" target="_blank">
+                            <i class="bi bi-file-earmark-text"></i> {{ item.name }}
+                        </a>
+                        {% endif %}
+                    </td>
+                    {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                    <td class="text-end">
+                         <div class="btn-group gap-2">
+                             <button class="btn btn-sm btn-secondary" data-bs-toggle="modal" data-bs-target="#moveCopyModal" data-item-name="{{ item.name }}" data-item-path="{{ item.path }}" data-action="copy" data-is-dir="{{ item.is_dir|string|lower }}">
+                                <i class="bi bi-subtract"></i> Kopyala
+                             </button>
+                             <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#moveCopyModal" data-item-name="{{ item.name }}" data-item-path="{{ item.path }}" data-action="move" data-is-dir="{{ item.is_dir|string|lower }}">
+                                <i class="bi bi-arrows-move"></i> Taşı
+                             </button>
+                             <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#renameModal" data-item-name="{{ item.name }}" data-item-path="{{ item.path }}">
+                                 <i class="bi bi-pencil-fill"></i> Yeniden Adlandır
+                             </button>
+                             <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal" data-item-name="{{ item.name }}" data-item-path="{{ item.path }}">
+                                 <i class="bi bi-trash-fill"></i> Sil
+                             </button>
+                         </div>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="2" class="text-center text-muted">Bu dizin boş.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if current_user.is_authenticated and current_user.role == 'admin' %}
+<div class="modal fade" id="createFolderModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <form action="{{ url_for('create_folder') }}" method="post" enctype="multipart/form-data">
+          <div class="modal-header"><h5 class="modal-title">Yeni Klasör Oluştur</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+              <input type="hidden" name="current_path" value="{{ current_path }}">
+              <div class="mb-3"><label for="folder_name" class="form-label">Klasör Adı:</label><input type="text" class="form-control" name="folder_name" required></div>
+              <div class="mb-3"><label for="folder_icon" class="form-label">Klasör İkonu (İsteğe Bağlı):</label><input class="form-control" type="file" name="folder_icon" accept=".png,.jpg,.jpeg,.gif"></div>
+          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button><button type="submit" class="btn btn-primary">Oluştur</button></div>
+        </form>
+    </div></div>
+</div>
+<div class="modal fade" id="uploadModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+      <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
+        <div class="modal-header"><h5 class="modal-title">Dosya Yükle</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+            <div class="mb-3"><label for="file" class="form-label">Yüklenecek Dosya:</label><input class="form-control" type="file" name="file" required></div>
+            <div class="mb-3"><label for="destination_folder" class="form-label">Hedef Klasör:</label><select name="destination_folder" class="form-select"><option value=".">Ana Dizin</option>{% for directory in all_directories %}<option value="{{ directory }}">{{ directory }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button><button type="submit" class="btn btn-primary">Yükle</button></div>
+      </form>
+  </div></div>
+</div>
+<div class="modal fade" id="renameModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <form action="{{ url_for('rename_item') }}" method="post">
+            <div class="modal-header"><h5 class="modal-title">Yeniden Adlandır</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><input type="hidden" name="current_path" id="renamePathInput"><input type="text" class="form-control" name="new_name" id="renameNameInput" required></div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button><button type="submit" class="btn btn-primary">Yeniden Adlandır</button></div>
+        </form>
+    </div></div>
+</div>
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <form action="{{ url_for('delete_item') }}" method="post">
+            <div class="modal-header"><h5 class="modal-title">Öğeyi Sil</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><input type="hidden" name="item_path" id="deletePathInput"><p><strong id="deleteItemName"></strong> isimli öğeyi silmek istediğinizden emin misiniz? <br><span class="text-danger">Bu işlem geri alınamaz!</span></p></div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button><button type="submit" class="btn btn-danger">Evet, Sil</button></div>
+        </form>
+    </div></div>
+</div>
+<div class="modal fade" id="moveCopyModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <form action="{{ url_for('operate_item') }}" method="post">
+          <div class="modal-header"><h5 class="modal-title" id="moveCopyModalLabel">İşlem</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+              <input type="hidden" name="action" id="moveCopyActionInput">
+              <input type="hidden" name="source_path" id="moveCopySourcePathInput">
+              <p>İşlem yapılacak öğe: <strong id="moveCopyItemName"></strong></p>
+              <div class="mb-3"><label for="destination_folder_mc" class="form-label">Hedef Klasör:</label><select name="destination_folder" id="destination_folder_mc" class="form-select"><option value=".">Ana Dizin</option>{% for directory in all_directories %}<option value="{{ directory }}">{{ directory }}</option>{% endfor %}</select></div>
+          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button><button type="submit" class="btn btn-primary" id="moveCopySubmitButton">Onayla</button></div>
+        </form>
+    </div></div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+    // Rename Modal
+    const renameModal = document.getElementById('renameModal');
+    if(renameModal) {
+        renameModal.addEventListener('show.bs.modal', (e) => {
+            const button = e.relatedTarget;
+            renameModal.querySelector('#renameNameInput').value = button.getAttribute('data-item-name');
+            renameModal.querySelector('#renamePathInput').value = button.getAttribute('data-item-path');
+        });
+    }
+
+    // Delete Modal
+    const deleteModal = document.getElementById('deleteModal');
+    if(deleteModal) {
+        deleteModal.addEventListener('show.bs.modal', (e) => {
+            const button = e.relatedTarget;
+            deleteModal.querySelector('#deleteItemName').textContent = button.getAttribute('data-item-name');
+            deleteModal.querySelector('#deletePathInput').value = button.getAttribute('data-item-path');
+        });
+    }
+
+    // Move/Copy Modal
+    const moveCopyModal = document.getElementById('moveCopyModal');
+    if (moveCopyModal) {
+        const destSelect = moveCopyModal.querySelector('#destination_folder_mc');
+        const allOptions = Array.from(destSelect.options);
+        moveCopyModal.addEventListener('show.bs.modal', (e) => {
+            const button = e.relatedTarget;
+            const itemName = button.getAttribute('data-item-name');
+            const itemPath = button.getAttribute('data-item-path');
+            const action = button.getAttribute('data-action');
+            const isDir = button.getAttribute('data-is-dir') === 'true';
+            moveCopyModal.querySelector('#moveCopyModalLabel').textContent = action === 'move' ? 'Öğeyi Taşı' : 'Öğeyi Kopyala';
+            moveCopyModal.querySelector('#moveCopyItemName').textContent = itemName;
+            moveCopyModal.querySelector('#moveCopyActionInput').value = action;
+            moveCopyModal.querySelector('#moveCopySourcePathInput').value = itemPath;
+            const submitButton = moveCopyModal.querySelector('#moveCopySubmitButton');
+            submitButton.textContent = action === 'move' ? 'Taşı' : 'Kopyala';
+            submitButton.className = action === 'move' ? 'btn btn-info' : 'btn btn-secondary';
+            allOptions.forEach(opt => opt.style.display = 'block');
+            if (isDir) {
+                allOptions.forEach(opt => {
+                    if (opt.value === itemPath || opt.value.startsWith(itemPath + '/')) {
+                        opt.style.display = 'none';
+                    }
+                });
+            }
+        });
+        moveCopyModal.addEventListener('hidden.bs.modal', (e) => {
+            allOptions.forEach(opt => { opt.style.display = 'block'; });
+            destSelect.value = '.';
+        });
+    }
+});
+</script>
+{% endblock %}
